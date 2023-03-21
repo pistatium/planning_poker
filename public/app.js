@@ -1,4 +1,7 @@
-const serverUrl = 'wss:///';
+const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+const path = '/';
+const serverUrl = new WebSocket(`${protocol}${window.location.host}${path}`);
+
 const joinContainer = document.getElementById('join-container');
 const joinButton = document.getElementById('join');
 const nameInput = document.getElementById('name');

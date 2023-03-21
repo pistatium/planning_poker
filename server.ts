@@ -6,7 +6,7 @@ const port = 8080
 const clients = new Map();
 let estimates = new Map();
 async function handler(req: Request): Promise<Response> {
-    const url = new URL(req.url, `http://${req.headers.get("host")}`);
+    const url = new URL(req.url, `https://${req.headers.get("host")}`);
 
     if (req.method === "GET" && req.headers.get("upgrade") === "websocket") {
         const {socket, response} = Deno.upgradeWebSocket(req);
