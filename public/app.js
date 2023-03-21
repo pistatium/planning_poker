@@ -1,4 +1,4 @@
-const serverUrl = 'wss://';
+const serverUrl = 'wss:///';
 const joinContainer = document.getElementById('join-container');
 const joinButton = document.getElementById('join');
 const nameInput = document.getElementById('name');
