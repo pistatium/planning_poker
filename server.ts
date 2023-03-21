@@ -1,43 +1,59 @@
-import {
-    WebSocketClient,
-    WebSocketServer,
-} from "https://deno.land/x/websocket@v0.1.4/mod.ts";
+import {serve} from 'https://deno.land/std/http/mod.ts';
 
-const wss = new WebSocketServer(8080);
+const port = 8080
+
 
 const clients = new Map();
 let estimates = new Map();
+async function handler(req: Request): Promise<Response> {
+    const url = new URL(req.url, `http://${req.headers.get("host")}`);
 
-wss.on("connection", (client: WebSocketClient) => {
-    console.log("Client connected");
-
-    client.on("message", (message: string) => {
-        const data = JSON.parse(message);
-
-        if (data.type === "join") {
-            if (!isNameTaken(data.name)) {
-                clients.set(client, data.name);
-                client.send(JSON.stringify({type: "joined", name: data.name}));
-                broadcastParticipants();
-            } else {
-                client.send(JSON.stringify({type: "error", message: "名前が重複しています"}));
-            }
-        } else if (data.type === "estimate") {
-            estimates.set(clients.get(client), data.points);
-            // broadcastParticipants();
-        } else if (data.type === "reveal") {
-            broadcastEstimates();
-        } else if (data.type === "reset") {
-            resetEstimates();
+    if (req.method === "GET" && req.headers.get("upgrade") === "websocket") {
+        const {socket, response} = Deno.upgradeWebSocket(req);
+        socket.onopen = () => {
+            console.log("Client connected");
         }
-    });
+        socket.onmessage = (e) => {
+            const data = JSON.parse(e.data);
+            if (data.type === "join") {
+                if (!isNameTaken(data.name)) {
+                    clients.set(socket, data.name);
+                    socket.send(JSON.stringify({type: "joined", name: data.name}));
+                    broadcastParticipants();
+                } else {
+                    socket.send(JSON.stringify({type: "error", message: "名前が重複しています"}));
+                }
+            } else if (data.type === "estimate") {
+                estimates.set(clients.get(socket), data.points);
+                // broadcastParticipants();
+            } else if (data.type === "reveal") {
+                broadcastEstimates();
+            } else if (data.type === "reset") {
+                resetEstimates();
+            }
+        }
+        socket.onerror = (e) => {
+            console.error("WebSocket error:", e);
+        }
+        socket.onclose = () => {
+            clients.delete(socket);
+            estimates.delete(clients.get(socket));
+        }
+        return response;
+    } else {
+        // Static file serving code
+        if (url.pathname === "/") {
+            const index = await Deno.readTextFile("public/index.html");
+            return new Response(index, {headers: {"content-type": "text/html"}})
+        } else if (url.pathname.endsWith(".js")) {
+            const js = await Deno.readTextFile("public" + url.pathname);
+            return new Response( js, {headers: {"content-type": "application/javascript"}});
+        }
+        return new Response("404")
+    }
 
-    client.on("close", () => {
-        clients.delete(client);
-        estimates.delete(clients.get(client));
-        console.log("Client disconnected");
-    });
-});
+}
+serve(handler, { port: port });
 
 function broadcastEstimates() {
     for (const client of clients.keys()) {

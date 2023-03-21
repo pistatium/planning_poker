@@ -38,24 +38,18 @@ socket.addEventListener('message', (event) => {
     const data = JSON.parse(event.data);
     console.log('WebSocket message received:', data);
     if (data.type === 'joined') {
-        renderParticipant({ name: data.name, selected: false });
+        // renderParticipant({ name: data.name, selected: false });
         renderCards([...fibonacciNumbers, ...specialCards]);
     } else if (data.type === 'error') {
         showError(data.message);
     } else if (data.type === 'estimate') {
         renderEstimate(data.name, data.points);
-        // participantsContainer.clear()
-        // for (const estimate of data.estimates) {
-        //     renderEstimate(estimate[0], estimate[1]);
-        // }
     } else if (data.type === 'reset') {
         resetEstimates();
         resetParticipants();
-        // Array.from(clients.values()).forEach((name) => {
-        //     updateParticipantStatus(name, false);
-        // });
     } else if (data.type === "participant") {
         participantsContainer.innerHTML = "";
+        data.participants = []
         data.participants.forEach(({ name, selected }) => {
             renderParticipant({ name, selected });
         });
