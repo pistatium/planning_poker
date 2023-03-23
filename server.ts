@@ -25,7 +25,7 @@ async function handler(req: Request): Promise<Response> {
                 }
             } else if (data.type === "estimate") {
                 estimates.set(clients.get(socket), data.points);
-                // broadcastParticipants();
+                broadcastEstimate(clients.get(socket), data.points);
             } else if (data.type === "reveal") {
                 broadcastEstimates();
             } else if (data.type === "reset") {
@@ -54,6 +54,18 @@ async function handler(req: Request): Promise<Response> {
 
 }
 serve(handler, { port: port });
+
+function broadcastEstimate(name: string, points: number) {
+    for (const client of clients.keys()) {
+        client.send(
+            JSON.stringify({
+                type: "estimate",
+                name,
+                points,
+            }),
+        );
+    }
+}
 
 function broadcastEstimates() {
     for (const client of clients.keys()) {

@@ -10,6 +10,7 @@ const revealButton = document.getElementById('reveal');
 const resetButton = document.getElementById('reset');
 const estimatesContainer = document.getElementById('estimates');
 const participantsContainer = document.getElementById('participants');
+const controllerContainer = document.getElementById('controller');
 
 const fibonacciNumbers = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89];
 const specialCards = ['?', '∞'];
@@ -24,7 +25,8 @@ socket.addEventListener('open', (event) => {
         const name = nameInput.value.trim();
         if (name) {
             socket.send(JSON.stringify({type: 'join', name}));
-            joinContainer.style.display = 'none';
+            joinContainer.classList.add("invisible")
+            controllerContainer.classList.remove("invisible")
         }
     });
 
@@ -41,29 +43,19 @@ socket.addEventListener('message', (event) => {
     const data = JSON.parse(event.data);
     console.log('WebSocket message received:', data);
     if (data.type === 'joined') {
-        // renderParticipant({ name: data.name, selected: false });
         renderCards([...fibonacciNumbers, ...specialCards]);
     } else if (data.type === 'error') {
         showError(data.message);
     } else if (data.type === 'estimate') {
-        renderEstimate(data.name, data.points);
+        updateParticipantStatus(data.name, data.points !== null);
     } else if (data.type === 'reset') {
         resetEstimates();
         resetParticipants();
-    } else if (data.type === "participant") {
-        participantsContainer.innerHTML = "";
-        data.participants = []
-        data.participants.forEach(({ name, selected }) => {
-            renderParticipant({ name, selected });
-        });
     } else if (data.type === 'participants') {
+        participantsContainer.innerHTML = "";
         data.participants.forEach(renderParticipant);
-
     } else if (data.type === "reveal") {
-        resetEstimates();
-        data.estimates.forEach(([name, points]) => {
-            renderEstimate(name, points);
-        });
+        updateParticipants(data.estimates);
     }
 });
 
@@ -73,7 +65,6 @@ function renderCards(cards) {
         cardElement.textContent = card;
         cardElement.classList.add(
             'bg-gray-200',
-            'hover:bg-gray-300',
             'text-lg',
             'font-bold',
             'py-2',
@@ -91,7 +82,7 @@ function renderCards(cards) {
         cardsContainer.appendChild(cardElement);
     });
     const unselectButton = document.createElement("button");
-    unselectButton.textContent = "Unselect";
+    unselectButton.textContent = "解除";
     unselectButton.classList.add(
         "bg-gray-200",
         "hover:bg-gray-300",
@@ -103,11 +94,79 @@ function renderCards(cards) {
         "ml-2"
     );
     unselectButton.addEventListener("click", () => {
-        socket.send(JSON.stringify({ type: "estimate", points: null }));
+        if (selectedCard) {
+            selectedCard.classList.remove("bg-yellow-300");
+            selectedCard = null;
+        }
+        socket.send(JSON.stringify({type: "estimate", points: null}));
     });
     cardsContainer.appendChild(unselectButton);
 }
 
+
+
+function renderParticipant({name, selected}) {
+    const participantElement = document.createElement("div");
+    participantElement.classList.add(
+        "flex",
+        "flex-col",
+        "items-center",
+        "w-24",
+        "h-28",
+        "border",
+        "border-gray-200",
+        "rounded",
+        "shadow",
+        "p-2",
+        "bg-white"
+    );
+
+    const cardElement = document.createElement("div");
+    cardElement.classList.add(
+        "w-full",
+        "h-full",
+        "border-2",
+        "border-gray-200",
+        "rounded",
+        "bg-white",
+        "flex",
+        "items-center",
+        "justify-center",
+        "text-lg",
+        "font-bold"
+    );
+
+    const nameElement = document.createElement("div");
+    nameElement.textContent = name;
+    nameElement.classList.add("mt-1", "text-sm");
+
+    participantElement.appendChild(cardElement);
+    participantElement.appendChild(nameElement);
+    participantsContainer.appendChild(participantElement);
+}
+
+function resetEstimates() {
+    estimatesContainer.innerHTML = "";
+    updateParticipants([]);
+}
+
+function updateParticipants(estimates) {
+    const participantElements = Array.from(participantsContainer.children);
+    participantElements.forEach((element) => {
+        const nameElement = element.querySelector("div:nth-child(2)");
+        const name = nameElement.textContent;
+        const cardElement = element.querySelector("div:first-child");
+
+        const estimate = estimates.find(([participantName]) => participantName === name);
+        if (estimate) {
+            cardElement.textContent = estimate[1];
+            cardElement.classList.add("border-green-500");
+        } else {
+            cardElement.textContent = "";
+            cardElement.classList.remove("border-green-500");
+        }
+    });
+}
 function updateParticipantStatus(name, estimated) {
     const participantElements = Array.from(participantsContainer.children);
     participantElements.forEach((element) => {
@@ -121,42 +180,23 @@ function updateParticipantStatus(name, estimated) {
     });
 }
 
-function renderEstimate(name, points) {
-    const estimateElement = document.createElement('div');
-    estimateElement.textContent = `${name}: ${points}`;
-    estimateElement.classList.add('p-2', 'bg-white', 'shadow', 'rounded');
-    estimatesContainer.appendChild(estimateElement);
-}
 
-function renderParticipant({ name, selected }) {
-    const participantElement = document.createElement("div");
-    participantElement.textContent = name;
-    participantElement.classList.add("p-2", "bg-white", "shadow", "rounded");
-
-    if (selected) {
-        participantElement.classList.add("border", "border-yellow-500");
-    }
-
-    participantsContainer.appendChild(participantElement);
-}
-
-function resetEstimates() {
-    estimatesContainer.innerHTML = '';
-}
 function resetParticipants() {
-    Array.from(participantsContainer.children).forEach((participantElement) => {
-        participantElement.style.backgroundColor = "white";
-    });
+    selectedCard.classList.remove("bg-yellow-300");
 }
+
 function showError(message) {
+    console.log(message)
     const error = document.createElement('div');
     error.className = 'bg-red-500 text-white px-4 py-2 rounded-lg mb-4';
     error.textContent = message;
 
-    const container = document.getElementById('join-container');
-    container.insertBefore(error, container.firstChild);
+
+    joinContainer.insertBefore(error, joinContainer.firstChild);
+    joinContainer.classList.remove("invisible")
+    controllerContainer.classList.add("invisible")
 
     setTimeout(() => {
-        container.removeChild(error);
+        joinContainer.removeChild(error);
     }, 3000);
 }
