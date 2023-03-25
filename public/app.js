@@ -12,12 +12,28 @@ const resetButton = document.getElementById('reset');
 const estimatesContainer = document.getElementById('estimates');
 const participantsContainer = document.getElementById('participants');
 const controllerContainer = document.getElementById('controller');
+const roomIdDisplay = document.getElementById("room-id-display");
+const joinRandomRoomButton = document.getElementById("join-random-room");
 
 const fibonacciNumbers = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89];
 const specialCards = ['?', '∞'];
 let selectedCard = null;
 
 const socket = new WebSocket(serverUrl);
+
+roomIdDisplay.innerText = `現在のRoomID: ${room}`;
+
+joinRandomRoomButton.addEventListener("click", () => {
+    // ランダムなRoomIDを生成
+    const randomRoomId = Math.random().toString(36).substr(2, 8);
+
+    // 新しい部屋に参加
+    socket.send(JSON.stringify({ type: "joinRoom", room: randomRoomId }));
+
+    // RoomIDを表示を更新
+    roomIdDisplay.innerText = `現在のRoomID: ${randomRoomId}`;
+    location.hash = randomRoomId;
+});
 
 socket.addEventListener('open', (event) => {
     console.log('WebSocket connection opened:', event);
@@ -26,8 +42,9 @@ socket.addEventListener('open', (event) => {
         const name = nameInput.value.trim();
         if (name) {
             socket.send(JSON.stringify({type: 'join', name}));
-            joinContainer.classList.add("invisible")
-            controllerContainer.classList.remove("invisible")
+            joinContainer.classList.add("hidden")
+            controllerContainer.classList.remove("hidden")
+            joinRandomRoomButton.classList.add("hidden")
         }
     });
 
@@ -194,8 +211,8 @@ function showError(message) {
 
 
     joinContainer.insertBefore(error, joinContainer.firstChild);
-    joinContainer.classList.remove("invisible")
-    controllerContainer.classList.add("invisible")
+    joinContainer.classList.remove("hidden")
+    controllerContainer.classList.add("hidden")
 
     setTimeout(() => {
         joinContainer.removeChild(error);

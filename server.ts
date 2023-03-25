@@ -10,7 +10,7 @@ type Room = {
 const rooms = new Map<string, Room>();
 const socketRooms = new Map<WebSocket, string>();
 
-async function handler(req: Request): Promise<Response> {
+export async function handler(req: Request): Promise<Response> {
     const url = new URL(req.url, `https://${req.headers.get("host")}`);
 
     if (req.method === "GET" && req.headers.get("upgrade") === "websocket") {
@@ -81,7 +81,6 @@ async function handler(req: Request): Promise<Response> {
     }
 }
 
-serve(handler, {port: port});
 
 function broadcastEstimate(clients: Map<WebSocket, string>, name: string, points: number) {
     for (const client of clients.keys()) {
@@ -133,4 +132,12 @@ function resetEstimates(clients: Map<WebSocket, string>, estimates: Map<string, 
 function isNameTaken(clients: Map<WebSocket, string>, name: string): boolean {
     console.log(clients, name)
     return Array.from(clients.values()).includes(name);
+}
+
+export function startServe(port: number) {
+    return serve(handler, {port: port});
+}
+
+if (import.meta.main) {
+    startServe(port)
 }
