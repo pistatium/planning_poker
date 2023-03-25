@@ -1,6 +1,7 @@
 const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
 const path = '/';
 const serverUrl = `${protocol}${window.location.host}${path}`;
+const room = window.location.hash.substr(1) || "default";
 
 const joinContainer = document.getElementById('join-container');
 const joinButton = document.getElementById('join');
@@ -20,7 +21,7 @@ const socket = new WebSocket(serverUrl);
 
 socket.addEventListener('open', (event) => {
     console.log('WebSocket connection opened:', event);
-
+    socket.send(JSON.stringify({ type: "joinRoom", room }));
     joinButton.addEventListener('click', () => {
         const name = nameInput.value.trim();
         if (name) {

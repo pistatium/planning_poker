@@ -2,9 +2,14 @@ import {serve} from 'https://deno.land/std/http/mod.ts';
 
 const port = 8080
 
+type Room = {
+    clients: Map<WebSocket, string>;
+    estimates: Map<string, number>;
+};
 
-const clients = new Map();
-let estimates = new Map();
+const rooms = new Map<string, Room>();
+const socketRooms = new Map<WebSocket, string>();
+
 async function handler(req: Request): Promise<Response> {
     const url = new URL(req.url, `https://${req.headers.get("host")}`);
 
@@ -15,47 +20,70 @@ async function handler(req: Request): Promise<Response> {
         }
         socket.onmessage = (e) => {
             const data = JSON.parse(e.data);
-            if (data.type === "join") {
-                if (!isNameTaken(data.name)) {
-                    clients.set(socket, data.name);
-                    socket.send(JSON.stringify({type: "joined", name: data.name}));
-                    broadcastParticipants();
-                } else {
-                    socket.send(JSON.stringify({type: "error", message: "名前が重複しています"}));
+            const currentRoomID = socketRooms.get(socket)
+            console.log(data,　currentRoomID)
+
+            if (data.type === "joinRoom") {
+                const roomId = data.room || "default";
+                socketRooms.set(socket, roomId);
+                if (!rooms.has(roomId)) {
+                    rooms.set(roomId, {clients: new Map(), estimates: new Map()});
                 }
-            } else if (data.type === "estimate") {
-                estimates.set(clients.get(socket), data.points);
-                broadcastEstimate(clients.get(socket), data.points);
-            } else if (data.type === "reveal") {
-                broadcastEstimates();
-            } else if (data.type === "reset") {
-                resetEstimates();
+            } else {
+                if (!currentRoomID) {
+                    console.error("room id error")
+                    return;
+                }
+                const currentRoom = rooms.get(currentRoomID)
+                if (!currentRoom) {
+                    console.error("No current room found");
+                    return;
+                }
+                if (data.type === "join") {
+                    if (!isNameTaken(currentRoom.clients, data.name)) {
+                        currentRoom.clients.set(socket, data.name);
+                        socket.send(JSON.stringify({type: "joined", name: data.name}));
+                        broadcastParticipants(currentRoom.clients, currentRoom.estimates);
+                    } else {
+                        socket.send(JSON.stringify({type: "error", message: "名前が重複しています"}));
+                    }
+                } else if (data.type === "estimate") {
+                    currentRoom!.estimates.set(currentRoom.clients.get(socket)!, data.points);
+                    broadcastEstimate(currentRoom.clients, currentRoom.clients.get(socket)!, data.points);
+                } else if (data.type === "reveal") {
+                    broadcastEstimates(currentRoom.clients, currentRoom.estimates);
+                } else if (data.type === "reset") {
+                    resetEstimates(currentRoom.clients, currentRoom.estimates);
+                }
             }
         }
         socket.onerror = (e) => {
             console.error("WebSocket error:", e);
         }
         socket.onclose = () => {
-            clients.delete(socket);
-            estimates.delete(clients.get(socket));
+            if (socketRooms.has(socket)) {
+                const roomId = socketRooms.get(socket);
+                const currentRoom = rooms.get(roomId || "")
+                currentRoom!.clients.delete(socket);
+                currentRoom!.estimates.delete(currentRoom!.clients.get(socket)!);
+            }
         }
         return response;
     } else {
-        // Static file serving code
         if (url.pathname === "/") {
             const index = await Deno.readTextFile("public/index.html");
             return new Response(index, {headers: {"content-type": "text/html"}})
         } else if (url.pathname.endsWith(".js")) {
             const js = await Deno.readTextFile("public" + url.pathname);
-            return new Response( js, {headers: {"content-type": "application/javascript"}});
+            return new Response(js, {headers: {"content-type": "application/javascript"}});
         }
         return new Response("404")
     }
-
 }
-serve(handler, { port: port });
 
-function broadcastEstimate(name: string, points: number) {
+serve(handler, {port: port});
+
+function broadcastEstimate(clients: Map<WebSocket, string>, name: string, points: number) {
     for (const client of clients.keys()) {
         client.send(
             JSON.stringify({
@@ -67,7 +95,7 @@ function broadcastEstimate(name: string, points: number) {
     }
 }
 
-function broadcastEstimates() {
+function broadcastEstimates(clients: Map<WebSocket, string>, estimates: Map<string, number>) {
     for (const client of clients.keys()) {
         client.send(
             JSON.stringify({
@@ -78,7 +106,7 @@ function broadcastEstimates() {
     }
 }
 
-function broadcastParticipants() {
+function broadcastParticipants(clients: Map<WebSocket, string>, estimates: Map<string, number>) {
     const participants = Array.from(clients.entries()).map(([client, name]) => ({
         name,
         selected: estimates.has(name),
@@ -94,14 +122,15 @@ function broadcastParticipants() {
     }
 }
 
-function resetEstimates() {
+function resetEstimates(clients: Map<WebSocket, string>, estimates: Map<string, number>) {
     estimates.clear();
     for (const client of clients.keys()) {
         client.send(JSON.stringify({type: "reset"}));
     }
-    broadcastParticipants();
+    broadcastParticipants(clients, estimates);
 }
 
-function isNameTaken(name: string): boolean {
+function isNameTaken(clients: Map<WebSocket, string>, name: string): boolean {
+    console.log(clients, name)
     return Array.from(clients.values()).includes(name);
 }
