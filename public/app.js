@@ -45,6 +45,7 @@ socket.addEventListener('open', (event) => {
             joinContainer.classList.add("hidden")
             controllerContainer.classList.remove("hidden")
             joinRandomRoomButton.classList.add("hidden")
+            saveName(name);
         }
     });
 
@@ -229,15 +230,6 @@ function getName() {
     return localStorage.getItem('savedName');
 }
 
-// イベントリスナーの中で、名前を保存する処理を追加
-joinButton.addEventListener('click', () => {
-    const name = nameInput.value.trim();
-    if (name) {
-        socket.send(JSON.stringify({type: 'join', name}));
-        saveName(name); // 名前を保存
-        joinContainer.style.display = 'none';
-    }
-});
 
 // ページをロードする際に、名前を再取得する
 document.addEventListener('DOMContentLoaded', () => {
