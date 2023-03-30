@@ -1,6 +1,6 @@
 import {serve} from 'https://deno.land/std/http/mod.ts';
 
-const port = 8080
+
 
 type Room = {
     clients: Map<WebSocket, string>;
@@ -135,9 +135,10 @@ function isNameTaken(clients: Map<WebSocket, string>, name: string): boolean {
 }
 
 export function startServe(port: number) {
-    return serve(handler, {port: port});
+    return serve(handler, {addr: ":" + port});
 }
 
 if (import.meta.main) {
+    const port = 8080
     startServe(port)
 }
