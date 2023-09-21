@@ -14,6 +14,7 @@ const participantsContainer = document.getElementById('participants');
 const controllerContainer = document.getElementById('controller');
 const roomIdDisplay = document.getElementById("room-id-display");
 const joinRandomRoomButton = document.getElementById("join-random-room");
+const historyContainer = document.getElementById("history");
 
 const fibonacciNumbers = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89];
 const specialCards = ['?', '∞'];
@@ -74,6 +75,23 @@ socket.addEventListener('message', (event) => {
         participantsContainer.innerHTML = "";
         data.participants.forEach(renderParticipant);
     } else if (data.type === "reveal") {
+        let sum = 0;
+        historyRows = []
+        for (const [name, points] of data.estimates) {
+            // pointsが数字以外なら無視
+            if (isNaN(points)) {
+                continue;
+            }
+            sum += points;
+            historyRows.push(`<span class="font-bold">${name}</span>: ${points}`);
+        }
+        // 平均と結果の一覧を表示
+        historyContainer.innerHTML = `
+            <div class="mb-6">
+            <div class="text-lg font-bold mb-2">平均: ${sum / data.estimates.length}</div>
+            <div>${historyRows.join("<br>")}</div>
+            </div>
+        ` + historyContainer.innerHTML;
         updateParticipants(data.estimates);
     }
 });
@@ -101,7 +119,7 @@ function renderCards(cards) {
         cardsContainer.appendChild(cardElement);
     });
     const unselectButton = document.createElement("button");
-    unselectButton.textContent = "解除";
+    unselectButton.textContent = "未選択にもどす";
     unselectButton.classList.add(
         "bg-gray-200",
         "hover:bg-gray-300",
@@ -110,7 +128,6 @@ function renderCards(cards) {
         "py-2",
         "px-4",
         "rounded",
-        "ml-2"
     );
     unselectButton.addEventListener("click", () => {
         if (selectedCard) {
