@@ -86,10 +86,13 @@ socket.addEventListener('message', (event) => {
             historyRows.push(`<span class="font-bold">${name}</span>: ${points}`);
         }
         // 平均と結果の一覧を表示
+        const now = new Date();
+        const nowJSTStr = now.toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
         historyContainer.innerHTML = `
             <div class="mb-6">
             <div class="text-lg font-bold mb-2">平均: ${sum / historyRows.length}</div>
             <div>${historyRows.join("<br>")}</div>
+            ${nowJSTStr}
             </div>
         ` + historyContainer.innerHTML;
         updateParticipants(data.estimates);
