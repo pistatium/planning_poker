@@ -79,7 +79,7 @@ socket.addEventListener('message', (event) => {
         historyRows = []
         for (const [name, points] of data.estimates) {
             // pointsが数字以外なら無視
-            if (isNaN(points)) {
+            if (isNaN(points) || points === null) {
                 continue;
             }
             sum += points;
@@ -88,7 +88,7 @@ socket.addEventListener('message', (event) => {
         // 平均と結果の一覧を表示
         historyContainer.innerHTML = `
             <div class="mb-6">
-            <div class="text-lg font-bold mb-2">平均: ${sum / data.estimates.length}</div>
+            <div class="text-lg font-bold mb-2">平均: ${sum / historyRows.length}</div>
             <div>${historyRows.join("<br>")}</div>
             </div>
         ` + historyContainer.innerHTML;
