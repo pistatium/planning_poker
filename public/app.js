@@ -29,7 +29,7 @@ joinRandomRoomButton.addEventListener("click", () => {
     const randomRoomId = Math.random().toString(36).substr(2, 8);
 
     // 新しい部屋に参加
-    socket.send(JSON.stringify({ type: "joinRoom", room: randomRoomId }));
+    socket.send(JSON.stringify({type: "joinRoom", room: randomRoomId}));
 
     // RoomIDを表示を更新
     roomIdDisplay.innerText = `現在のRoomID: ${randomRoomId}`;
@@ -38,7 +38,7 @@ joinRandomRoomButton.addEventListener("click", () => {
 
 socket.addEventListener('open', (event) => {
     console.log('WebSocket connection opened:', event);
-    socket.send(JSON.stringify({ type: "joinRoom", room }));
+    socket.send(JSON.stringify({type: "joinRoom", room}));
     joinButton.addEventListener('click', () => {
         const name = nameInput.value.trim();
         if (name) {
@@ -75,26 +75,7 @@ socket.addEventListener('message', (event) => {
         participantsContainer.innerHTML = "";
         data.participants.forEach(renderParticipant);
     } else if (data.type === "reveal") {
-        let sum = 0;
-        historyRows = []
-        for (const [name, points] of data.estimates) {
-            // pointsが数字以外なら無視
-            if (isNaN(points) || points === null) {
-                continue;
-            }
-            sum += points;
-            historyRows.push(`<span class="font-bold">${name}</span>: ${points}`);
-        }
-        // 平均と結果の一覧を表示
-        const now = new Date();
-        const nowJSTStr = now.toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
-        historyContainer.innerHTML = `
-            <div class="mb-6">
-            <div class="text-lg font-bold mb-2">平均: ${sum / historyRows.length}</div>
-            <div>${historyRows.join("<br>")}</div>
-            ${nowJSTStr}
-            </div>
-        ` + historyContainer.innerHTML;
+        renderHistory(data.estimates)
         updateParticipants(data.estimates);
     }
 });
@@ -143,6 +124,29 @@ function renderCards(cards) {
 }
 
 
+function renderHistory(estimates) {
+    let sum = 0;
+    historyRows = []
+    for (const [name, points] of estimates) {
+        // pointsが数字以外なら無視
+        if (isNaN(points) || points === null) {
+            continue;
+        }
+        sum += points;
+        historyRows.push(`<span class="font-bold">${name}</span>: ${points}`);
+    }
+    // 平均と結果の一覧を表示
+    const now = new Date();
+    const nowJSTStr = now.toLocaleString("ja-JP", {timeZone: "Asia/Tokyo"});
+    const historyRowContainer  = document.createElement("div");
+    historyRowContainer.classList.add("mb-6");
+    historyRowContainer.innerHTML= `
+        <div class="text-lg font-bold mb-2">平均: ${sum / historyRows.length}</div>
+        <div>${historyRows.join("<br>")}</div>
+        ${nowJSTStr}
+    `
+    historyContainer.prepend(historyRowContainer)
+}
 
 function renderParticipant({name, selected}) {
     const participantElement = document.createElement("div");
@@ -206,6 +210,7 @@ function updateParticipants(estimates) {
         }
     });
 }
+
 function updateParticipantStatus(name, estimated) {
     const participantElements = Array.from(participantsContainer.children);
     participantElements.forEach((element) => {
