@@ -134,11 +134,11 @@ function isNameTaken(clients: Map<WebSocket, string>, name: string): boolean {
     return Array.from(clients.values()).includes(name);
 }
 
-export function startServe(port: number) {
+export function startServe(port: string) {
     return serve(handler, {addr: ":" + port});
 }
 
 if (import.meta.main) {
-    const port = 8080
+    const port = Deno.env.get("PORT") || "8080";
     startServe(port)
 }
