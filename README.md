@@ -1,5 +1,7 @@
 # プランニングポーカー
 
+![image](https://github.com/pistatium/planning_poker/assets/394378/321801b3-098c-4a0f-ab84-3c54610d261b)
+
 スクラム用のプランニングポーカーです。
 
 ## 特徴
