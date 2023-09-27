@@ -1,4 +1,4 @@
-import {serve} from 'https://deno.land/std/http/mod.ts';
+import {serve} from "https://deno.land/std@0.202.0/http/mod.ts";
 
 
 
@@ -134,11 +134,11 @@ function isNameTaken(clients: Map<WebSocket, string>, name: string): boolean {
     return Array.from(clients.values()).includes(name);
 }
 
-export function startServe(port: string) {
-    return serve(handler, {addr: ":" + port});
+export function startServe(port: number) {
+    return serve(handler, { port: port, hostname: "0.0.0.0"});
 }
 
 if (import.meta.main) {
     const port = Deno.env.get("PORT") || "8080";
-    startServe(port)
+    startServe(parseInt(port));
 }
