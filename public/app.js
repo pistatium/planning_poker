@@ -47,6 +47,7 @@ socket.addEventListener('open', (event) => {
             controllerContainer.classList.remove("hidden")
             joinRandomRoomButton.classList.add("hidden")
             saveName(name);
+            setPolling(socket)
         }
     });
 
@@ -263,3 +264,23 @@ document.addEventListener('DOMContentLoaded', () => {
         nameInput.value = savedName;
     }
 });
+
+let inactivityTimer;
+let pollingTimer;
+
+// CloudRun のインスタンスが終了しないように ping を送る
+function setPolling(socket) {
+    document.addEventListener('click', () => {
+        clearTimeout(inactivityTimer);  // 一定時間のタイマーをリセット
+        clearInterval(pollingTimer);    // ポーリングを停止
+
+        // 一定時間操作がなければポーリングを停止
+        inactivityTimer = setTimeout(() => {
+            clearInterval(pollingTimer);
+        }, 300 * 1000);
+        const ping = function () {
+            socket.send(JSON.stringify({type: 'ping'}));
+        };
+        pollingTimer = setInterval(ping, 5000);
+    });
+}

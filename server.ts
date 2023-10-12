@@ -54,6 +54,8 @@ export async function handler(req: Request): Promise<Response> {
                     broadcastEstimates(currentRoom.clients, currentRoom.estimates);
                 } else if (data.type === "reset") {
                     resetEstimates(currentRoom.clients, currentRoom.estimates);
+                } else if (data.type === "ping") {
+                    return;
                 }
             }
         }
