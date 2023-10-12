@@ -19,3 +19,6 @@
     * deno deploy が使いたかったのがもともとです
     * deno deployだとインスタンス数が不定なので運が悪いと同じ部屋に入れない問題があります
       * Cloud Run でインスタンス数 1 で固定するみたいな運用がいいかもです
+
+
+https://zenn.dev/articles/996f1c64ef58f3/edit
