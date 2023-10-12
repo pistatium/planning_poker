@@ -1,7 +1,7 @@
 const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
 const path = '/';
 const serverUrl = `${protocol}${window.location.host}${path}`;
-const room = window.location.hash.substr(1) || "default";
+const room = window.location.hash.substr(1) || "";
 
 const joinContainer = document.getElementById('join-container');
 const joinButton = document.getElementById('join');
@@ -13,7 +13,6 @@ const estimatesContainer = document.getElementById('estimates');
 const participantsContainer = document.getElementById('participants');
 const controllerContainer = document.getElementById('controller');
 const roomIdDisplay = document.getElementById("room-id-display");
-const joinRandomRoomButton = document.getElementById("join-random-room");
 const historyContainer = document.getElementById("history");
 
 const fibonacciNumbers = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89];
@@ -24,17 +23,17 @@ const socket = new WebSocket(serverUrl);
 
 roomIdDisplay.innerText = `現在のRoomID: ${room}`;
 
-joinRandomRoomButton.addEventListener("click", () => {
+function setRoomID() {
     // ランダムなRoomIDを生成
     const randomRoomId = Math.random().toString(36).substr(2, 8);
-
-    // 新しい部屋に参加
-    socket.send(JSON.stringify({type: "joinRoom", room: randomRoomId}));
-
     // RoomIDを表示を更新
-    roomIdDisplay.innerText = `現在のRoomID: ${randomRoomId}`;
     location.hash = randomRoomId;
-});
+    roomIdDisplay.innerText = `現在のRoomID: ${randomRoomId}`;
+}
+if (room == '') {
+    setRoomID()
+}
+
 
 socket.addEventListener('open', (event) => {
     console.log('WebSocket connection opened:', event);
@@ -45,7 +44,7 @@ socket.addEventListener('open', (event) => {
             socket.send(JSON.stringify({type: 'join', name}));
             joinContainer.classList.add("hidden")
             controllerContainer.classList.remove("hidden")
-            joinRandomRoomButton.classList.add("hidden")
+
             saveName(name);
             setPolling(socket)
         }
