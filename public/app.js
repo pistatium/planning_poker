@@ -46,7 +46,7 @@ socket.addEventListener('open', (event) => {
             controllerContainer.classList.remove("hidden")
 
             saveName(name);
-            setPolling(socket)
+            setPolling()
         }
     });
 
@@ -268,7 +268,7 @@ let inactivityTimer;
 let pollingTimer;
 
 // CloudRun のインスタンスが終了しないように ping を送る
-function setPolling(socket) {
+function setPolling() {
     document.addEventListener('click', () => {
         clearTimeout(inactivityTimer);  // 一定時間のタイマーをリセット
         clearInterval(pollingTimer);    // ポーリングを停止
@@ -276,9 +276,9 @@ function setPolling(socket) {
         // 一定時間操作がなければポーリングを停止
         inactivityTimer = setTimeout(() => {
             clearInterval(pollingTimer);
-        }, 300 * 1000);
+        }, 600 * 1000);
         const ping = function () {
-            socket.send(JSON.stringify({type: 'ping'}));
+            fetch("/ping")
         };
         pollingTimer = setInterval(ping, 5000);
     });

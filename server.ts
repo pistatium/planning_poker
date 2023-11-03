@@ -72,6 +72,9 @@ export async function handler(req: Request): Promise<Response> {
         }
         return response;
     } else {
+        if (url.pathname === "/ping") {
+            return new Response("", {headers: {"content-type": "text/plain"}})
+        }
         if (url.pathname === "/") {
             const index = await Deno.readTextFile("public/index.html");
             return new Response(index, {headers: {"content-type": "text/html"}})
