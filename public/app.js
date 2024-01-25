@@ -1,8 +1,7 @@
 const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-const path = '/';
-const serverUrl = `${protocol}${window.location.host}${path}`;
-const room = window.location.hash.substr(1) || "";
+const path = '/ws';
 
+const room = window.location.hash.substr(1) || "";
 const joinContainer = document.getElementById('join-container');
 const joinButton = document.getElementById('join');
 const nameInput = document.getElementById('name');
@@ -15,9 +14,10 @@ const controllerContainer = document.getElementById('controller');
 const roomIdDisplay = document.getElementById("room-id-display");
 const historyContainer = document.getElementById("history");
 
-const fibonacciNumbers = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89];
+const fibonacciNumbers = ['1', '2', '3', '5', '8', '13', '21', '34', '55', '89'];
 const specialCards = ['?', '∞'];
 let selectedCard = null;
+const serverUrl = `${protocol}${window.location.host}${path}?room=${room}`;
 
 const socket = new WebSocket(serverUrl);
 
@@ -30,30 +30,31 @@ function setRoomID() {
     location.hash = randomRoomId;
     roomIdDisplay.innerText = `現在のRoomID: ${randomRoomId}`;
 }
-if (room == '') {
+if (room === '') {
     setRoomID()
 }
 
 
 socket.addEventListener('open', (event) => {
     console.log('WebSocket connection opened:', event);
-    socket.send(JSON.stringify({type: "joinRoom", room}));
+    // socket.send(JSON.stringify({type: "joinRoom", room}));
+    // 参加ボタンを押下したときのイベント
     joinButton.addEventListener('click', () => {
         const name = nameInput.value.trim();
         if (name) {
-            socket.send(JSON.stringify({type: 'join', name}));
+            socket.send(JSON.stringify({type: 'join', user_name: name}));
             joinContainer.classList.add("hidden")
             controllerContainer.classList.remove("hidden")
-
             saveName(name);
-            setPolling()
+            // setPolling()
         }
     });
-
+    // 開示ボタンを押したときのイベント
     revealButton.addEventListener('click', () => {
         socket.send(JSON.stringify({type: 'reveal'}));
     });
 
+    // リセットボタンを押したときのイベント
     resetButton.addEventListener('click', () => {
         socket.send(JSON.stringify({type: 'reset'}));
     });
@@ -62,21 +63,19 @@ socket.addEventListener('open', (event) => {
 socket.addEventListener('message', (event) => {
     const data = JSON.parse(event.data);
     console.log('WebSocket message received:', data);
+
     if (data.type === 'joined') {
+        // joinedイベントを受け取ったときの処理
         renderCards([...fibonacciNumbers, ...specialCards]);
     } else if (data.type === 'error') {
+        // errorイベントを受け取ったときの処理
         showError(data.message);
-    } else if (data.type === 'estimate') {
-        updateParticipantStatus(data.name, data.points !== null);
-    } else if (data.type === 'reset') {
-        resetEstimates();
-        resetParticipants();
-    } else if (data.type === 'participants') {
+    } else if (data.type === 'estimates') {
+        // estimatesイベントを受け取ったときの処理
+        renderEstimates(data.estimates);
+    }  else if (data.type === 'participants') {
         participantsContainer.innerHTML = "";
         data.participants.forEach(renderParticipant);
-    } else if (data.type === "reveal") {
-        renderHistory(data.estimates)
-        updateParticipants(data.estimates);
     }
 });
 
@@ -98,7 +97,7 @@ function renderCards(cards) {
             }
             cardElement.classList.add("bg-yellow-300");
             selectedCard = cardElement;
-            socket.send(JSON.stringify({type: "estimate", points: card}));
+            socket.send(JSON.stringify({type: "estimate", point: card, user_name: nameInput.value.trim()}));
         });
         cardsContainer.appendChild(cardElement);
     });
@@ -118,7 +117,7 @@ function renderCards(cards) {
             selectedCard.classList.remove("bg-yellow-300");
             selectedCard = null;
         }
-        socket.send(JSON.stringify({type: "estimate", points: null}));
+        socket.send(JSON.stringify({type: "estimate", point: "", user_name: nameInput.value.trim()}));
     });
     cardsContainer.appendChild(unselectButton);
 }
@@ -127,13 +126,13 @@ function renderCards(cards) {
 function renderHistory(estimates) {
     let sum = 0;
     historyRows = []
-    for (const [name, points] of estimates) {
+    for (const [name, point] of estimates) {
         // pointsが数字以外なら無視
-        if (isNaN(points) || points === null) {
+        if (isNaN(point) || point === null) {
             continue;
         }
-        sum += points;
-        historyRows.push(`<span class="font-bold">${name}</span>: ${points}`);
+        sum += point;
+        historyRows.push(`<span class="font-bold">${name}</span>: ${point}`);
     }
     // 平均と結果の一覧を表示
     const now = new Date();
@@ -148,7 +147,7 @@ function renderHistory(estimates) {
     historyContainer.prepend(historyRowContainer)
 }
 
-function renderParticipant({name, selected}) {
+function renderParticipant({user_name, is_estimated}){
     const participantElement = document.createElement("div");
     participantElement.classList.add(
         "flex",
@@ -161,9 +160,9 @@ function renderParticipant({name, selected}) {
         "rounded",
         "shadow",
         "p-2",
-        "bg-white"
+        "bg-white",
+        is_estimated ? "bg-green-200": null
     );
-
     const cardElement = document.createElement("div");
     cardElement.classList.add(
         "w-full",
@@ -178,9 +177,8 @@ function renderParticipant({name, selected}) {
         "text-lg",
         "font-bold"
     );
-
     const nameElement = document.createElement("div");
-    nameElement.textContent = name;
+    nameElement.textContent = user_name;
     nameElement.classList.add("mt-1", "text-sm");
 
     participantElement.appendChild(cardElement);
@@ -188,45 +186,25 @@ function renderParticipant({name, selected}) {
     participantsContainer.appendChild(participantElement);
 }
 
-function resetEstimates() {
-    estimatesContainer.innerHTML = "";
-    updateParticipants([]);
-}
 
-function updateParticipants(estimates) {
+function renderEstimates(estimates) {
     const participantElements = Array.from(participantsContainer.children);
     participantElements.forEach((element) => {
         const nameElement = element.querySelector("div:nth-child(2)");
         const name = nameElement.textContent;
         const cardElement = element.querySelector("div:first-child");
 
-        const estimate = estimates.find(([participantName]) => participantName === name);
+        const estimate = estimates.find(({user_name}) => user_name === name);
         if (estimate) {
-            cardElement.textContent = estimate[1];
+            cardElement.textContent = estimate.point;
             cardElement.classList.add("border-green-500");
         } else {
             cardElement.textContent = "";
             cardElement.classList.remove("border-green-500");
         }
+        cardElement.parentElement.classList.remove("bg-green-200");
+
     });
-}
-
-function updateParticipantStatus(name, estimated) {
-    const participantElements = Array.from(participantsContainer.children);
-    participantElements.forEach((element) => {
-        if (element.textContent === name) {
-            if (estimated) {
-                element.classList.add("bg-green-200");
-            } else {
-                element.classList.remove("bg-green-200");
-            }
-        }
-    });
-}
-
-
-function resetParticipants() {
-    selectedCard.classList.remove("bg-yellow-300");
 }
 
 function showError(message) {
@@ -234,7 +212,6 @@ function showError(message) {
     const error = document.createElement('div');
     error.className = 'bg-red-500 text-white px-4 py-2 rounded-lg mb-4';
     error.textContent = message;
-
 
     joinContainer.insertBefore(error, joinContainer.firstChild);
     joinContainer.classList.remove("hidden")

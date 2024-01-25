@@ -1,14 +1,9 @@
-FROM denoland/deno:1.37.0
+FROM golang:1.21-alpine
 
-ENV PORT=1993
-EXPOSE $PORT
 WORKDIR /app
-USER deno
+COPY go.mod go.sum /app/
+RUN go mod download
 
-COPY deps.ts .
-RUN deno cache deps.ts
-
-COPY . .
-RUN deno cache server.ts
-
-CMD ["run", "--allow-net", "--allow-env", "--allow-read=public", "server.ts"]
+COPY . /app
+RUN go build -o main ./
+CMD ["/app/main"]

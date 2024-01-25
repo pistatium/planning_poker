@@ -22,3 +22,23 @@
 
 
 https://zenn.dev/articles/996f1c64ef58f3/edit
+
+
+## サーバー
+
+join(roomId, userName):
+* ルームに入る
+  * ルームがなければ作る
+* 全員に参加者情報を通知
+
+estimate(roomId, userName, point):
+* Pointを保存
+* 全員に参加者情報を通知
+
+reveal(roomId, userName):
+* 参加者全員のPointをNotSetに
+* 全員に投票結果を通知
+
+reset(roomId, userName):
+* 参加者全員のPointをNotSetに
+* 全員に参加者情報を通知
