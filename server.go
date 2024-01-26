@@ -20,6 +20,7 @@ type Env struct {
 	Port      int `envconfig:"PORT" default:"8080"`
 	Firestore struct {
 		ProjectID      internal.FirestoreProjectID      `envconfig:"FIRESTORE_PROJECT_ID" required:"true"`
+		DatabaseName   internal.FirestoreDatabaseName   `envconfig:"FIRESTORE_DATABASE_NAME" default:""`
 		CollectionName internal.FirestoreCollectionName `envconfig:"FIRESTORE_ROOM_COLLECTION_NAME" default:"planing_poker_rooms"`
 	}
 }
@@ -38,12 +39,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to parse environment variables: %v", err)
 	}
-	ctx := context.Background()
-	roomRepository, err := internal.NewFirestoreRoomRepository(ctx, env.Firestore.ProjectID, env.Firestore.CollectionName)
-	if err != nil {
-		log.Fatalf("Failed to initialize firestore: %v", err)
-	}
-
+	roomRepository := internal.NewFirestoreRoomRepository(env.Firestore.ProjectID, env.Firestore.CollectionName, env.Firestore.DatabaseName)
 	server := &Server{
 		eventManager: internal.NewEventManager(roomRepository),
 	}

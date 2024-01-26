@@ -1,8 +1,8 @@
 package internal
 
 import (
+	"cloud.google.com/go/firestore"
 	"context"
-	firebase "firebase.google.com/go"
 	"fmt"
 	"github.com/pistatium/planing_poker/internal/entities"
 	"log/slog"
@@ -11,21 +11,18 @@ import (
 )
 
 type FirestoreProjectID string
+
+// FirestoreDatabaseName default以外のデータベースを使う場合指定
+type FirestoreDatabaseName string
 type FirestoreCollectionName string
 type FirestoreRoomRepository struct {
 	projectID      FirestoreProjectID
 	collectionName FirestoreCollectionName
-	app            *firebase.App
+	databaseName   FirestoreDatabaseName
 }
 
-func NewFirestoreRoomRepository(ctx context.Context, projectID FirestoreProjectID, collectionName FirestoreCollectionName) (*FirestoreRoomRepository, error) {
-	conf := firebase.Config{ProjectID: string(projectID)}
-	app, err := firebase.NewApp(ctx, &conf)
-	if err != nil {
-		slog.Error("firebase.NewApp error:", slog.Any("error", err))
-		return nil, err
-	}
-	return &FirestoreRoomRepository{projectID: projectID, collectionName: collectionName, app: app}, nil
+func NewFirestoreRoomRepository(projectID FirestoreProjectID, collectionName FirestoreCollectionName, databaseName FirestoreDatabaseName) *FirestoreRoomRepository {
+	return &FirestoreRoomRepository{projectID: projectID, collectionName: collectionName, databaseName: databaseName}
 }
 
 var rooms = map[string]*entities.Room{}
@@ -57,10 +54,17 @@ func (f2 FirestoreRoomRepository) Find(ctx context.Context, roomID string) (*ent
 	if room, ok := rooms[roomID]; ok {
 		return room, nil
 	}
-	client, err := f2.app.Firestore(ctx)
+	var client *firestore.Client
+	var err error
+	if f2.databaseName == "" {
+		client, err = firestore.NewClient(ctx, string(f2.projectID))
+	} else {
+		client, err = firestore.NewClientWithDatabase(ctx, string(f2.projectID), string(f2.databaseName))
+	}
 	if err != nil {
 		return nil, fmt.Errorf("fail to init firestore: %v", err)
 	}
+
 	defer client.Close()
 	doc, err := client.Collection(string(f2.collectionName)).Doc(roomID).Get(ctx)
 	if err != nil {
