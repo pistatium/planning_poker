@@ -6,16 +6,22 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/pistatium/planing_poker/internal"
+	"github.com/pistatium/planing_poker/internal/entities"
 	"log"
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 )
 
 type Env struct {
-	Port int `envconfig:"PORT" default:"8080"`
+	Port      int `envconfig:"PORT" default:"8080"`
+	Firestore struct {
+		ProjectID      internal.FirestoreProjectID      `envconfig:"FIRESTORE_PROJECT_ID" required:"true"`
+		CollectionName internal.FirestoreCollectionName `envconfig:"FIRESTORE_ROOM_COLLECTION_NAME" default:"planing_poker_rooms"`
+	}
 }
 
 var upgrader = websocket.Upgrader{
@@ -24,18 +30,20 @@ var upgrader = websocket.Upgrader{
 }
 
 func main() {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
+
 	var env Env
 	err := envconfig.Process("", &env)
 	if err != nil {
 		log.Fatalf("Failed to parse environment variables: %v", err)
 	}
-	//opt := option.WithCredentialsFile("path-to-your-service-account-json-file")
-	//var err error
-	//firestoreService, err = firestore.NewService(ctx, opt)
-	//if err != nil {
-	//	log.Fatalf("Failed to create firestore client: %v", err)
-	//}
-	roomRepository := internal.FirestoreRoomRepository{}
+	ctx := context.Background()
+	roomRepository, err := internal.NewFirestoreRoomRepository(ctx, env.Firestore.ProjectID, env.Firestore.CollectionName)
+	if err != nil {
+		log.Fatalf("Failed to initialize firestore: %v", err)
+	}
+
 	server := &Server{
 		eventManager: internal.NewEventManager(roomRepository),
 	}
@@ -69,7 +77,8 @@ type Response struct {
 
 type EstimatesResponse struct {
 	Response
-	Estimates []RepsEstimate `json:"estimates"`
+	Estimates   []RepsEstimate `json:"estimates"`
+	EstimatedAt time.Time      `json:"estimated_at"`
 }
 
 type RespParticipant struct {
@@ -79,6 +88,7 @@ type RespParticipant struct {
 type ParticipantResponse struct {
 	Response
 	Participants []RespParticipant `json:"participants"`
+	State        entities.State    `json:"state"`
 }
 
 func (s *Server) wsHandler(w http.ResponseWriter, r *http.Request) {
@@ -94,19 +104,26 @@ func (s *Server) wsHandler(w http.ResponseWriter, r *http.Request) {
 	roomID := r.URL.Query().Get("room")
 	if roomID == "" {
 		slog.Error("roomID is empty")
-		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	slog.Info("roomID", slog.String("roomID", roomID))
 
 	// ソケットメッセージのストリームを生成
 	messageStream := make(chan []byte)
+	var userName string
 	go func() {
 		defer close(messageStream)
 		for {
 			_, message, err := conn.ReadMessage()
 			slog.Info("connected", slog.String("remote_addr", conn.RemoteAddr().String()))
+			// コネクション切断など
 			if err != nil {
+				if userName != "" {
+					_, leaveErr := s.eventManager.Leave(r.Context(), roomID, userName)
+					if leaveErr != nil {
+						slog.Error("leave error:", slog.Any("error", err))
+					}
+				}
 				slog.Error("read error:",
 					slog.Any("error", err),
 					slog.String("remote_addr", conn.RemoteAddr().String()),
@@ -118,7 +135,8 @@ func (s *Server) wsHandler(w http.ResponseWriter, r *http.Request) {
 	}()
 	// ルームの変更を監視するストリームを生成
 	roomEventStream := s.eventManager.RoomChangedStream(r.Context(), roomID)
-	var lastRevealed *time.Time
+	now := time.Now()
+	lastRevealed := &now
 	if err != nil {
 		slog.Error("listen error:", slog.Any("error", err))
 		return
@@ -132,13 +150,13 @@ func (s *Server) wsHandler(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				return
 			}
-			s.handleWsMessage(r.Context(), conn, roomID, message)
+			userName = s.handleWsMessage(r.Context(), conn, roomID, message)
 		case room, ok := <-roomEventStream:
 			if !ok {
 				return
 			}
 			sendParticipants(conn, room)
-			if lastRevealed != room.LastRevealedAt() {
+			if lastRevealed != room.LastRevealedAt() && room.State() == entities.StateEstimated {
 				sendEstimates(conn, room)
 				lastRevealed = room.LastRevealedAt()
 			}
@@ -147,7 +165,7 @@ func (s *Server) wsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) handleWsMessage(ctx context.Context, conn *websocket.Conn, roomID string, message []byte) {
+func (s *Server) handleWsMessage(ctx context.Context, conn *websocket.Conn, roomID string, message []byte) (userName string) {
 	var m Message
 	err := json.Unmarshal(message, &m)
 	if err != nil {
@@ -182,7 +200,7 @@ func (s *Server) handleWsMessage(ctx context.Context, conn *websocket.Conn, room
 		}
 	case "estimate":
 		{
-			point, err := internal.NewPoint(m.PointLabel)
+			point, err := entities.NewPoint(m.PointLabel)
 			if err != nil {
 				sendError(conn, err)
 				return
@@ -214,7 +232,9 @@ func (s *Server) handleWsMessage(ctx context.Context, conn *websocket.Conn, room
 			sendEstimates(conn, room)
 		}
 	}
+	return m.UserName
 }
+
 func sendError(conn *websocket.Conn, err error) {
 	slog.Error("write error:", slog.Any("error", err))
 	err = conn.WriteJSON(&Response{
@@ -226,7 +246,7 @@ func sendError(conn *websocket.Conn, err error) {
 	}
 }
 
-func sendEstimates(conn *websocket.Conn, room *internal.Room) {
+func sendEstimates(conn *websocket.Conn, room *entities.Room) {
 	var estimates []RepsEstimate
 	for _, e := range room.Estimates() {
 		estimates = append(estimates, RepsEstimate{
@@ -238,19 +258,20 @@ func sendEstimates(conn *websocket.Conn, room *internal.Room) {
 		Response: Response{
 			Type: "estimates",
 		},
-		Estimates: estimates,
+		Estimates:   estimates,
+		EstimatedAt: *room.LastRevealedAt(),
 	})
 	if err != nil {
 		sendError(conn, err)
 	}
 }
 
-func sendParticipants(conn *websocket.Conn, room *internal.Room) {
+func sendParticipants(conn *websocket.Conn, room *entities.Room) {
 	var participants []RespParticipant
 	for _, e := range room.Estimates() {
 		participants = append(participants, RespParticipant{
 			UserName:    e.User.Name,
-			IsEstimated: e.Point != &internal.PointNotSet,
+			IsEstimated: e.Point != &entities.PointNotSet,
 		})
 	}
 	err := conn.WriteJSON(&ParticipantResponse{
@@ -258,6 +279,7 @@ func sendParticipants(conn *websocket.Conn, room *internal.Room) {
 			Type: "participants",
 		},
 		Participants: participants,
+		State:        room.State(),
 	})
 	if err != nil {
 		sendError(conn, err)

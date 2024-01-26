@@ -13,11 +13,11 @@
         <div id="room-id-display" class="bg-white p-4 m-2 rounded border border-gray-300 flex-grow"></div>
     </div>
     <div class="error"></div>
-    <div class="bg-white shadow-md rounded p-6">
-        <div id="join-container" class="flex flex-col items-center">
-            <input id="name" class="border rounded-lg px-3 py-2" placeholder="名前を入力" />
-            <button id="join" class="bg-blue-500 text-white px-4 py-2 rounded-lg mt-2">参加</button>
-        </div>
+    <div class="bg-white shadow-sm rounded p-6 mt-6 mb-6">
+        <form id="join-container" class="flex flex-col items-center">
+            <input aria-label="username" id="name" class="border rounded-lg px-3 py-2" placeholder="名前を入力" required />
+            <button id="join" type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-lg mt-2">参加</button>
+        </form>
 
         <div id="participants" class="grid grid-cols-6 gap-4"></div>
         <div id="controller" class="hidden">
@@ -39,6 +39,38 @@
             </div>
         </div>
     </div>
+    <div id="description" class="bg-white shadow-sm rounded p-6 text-small">
+        <h1 class="text-xl font-bold text-center text-gray-600 mb-6">無料で使える、リアルタイムなプランニングポーカー！</h1>
+        <p>
+            スクラムイベントのプランニングポーカーをオンラインでやるためのWebアプリです。
+            リアルタイムでのポイント見積もりが無料で利用できます。
+            開発プロジェクトの見積もりなどにぜひお使いください。
+        </p>
+        <section class="p-2 mb-2">
+            <h2 class="text-lg font-semibold">RoomIDの作成方法</h2>
+            <p>
+                上部に表示されているRoomIDごとに個別のポーカーを管理出来ます。
+                初回はランダムでハッシュが割り当てられますが、URLのハッシュ部分を変更することで好きな名前の部屋を作れます。
+                例：https://poker.pistatium.dev/#YourRoomName のように、# の後に任意の文字列を入れてください。
+                ハッシュ付きのURLを他の人に共有することで、同じ部屋に参加することができます。
+            </p>
+        </section>
+        <section class="p-2 mb-2">
+            <h2 class="text-lg font-semibold">参加方法</h2>
+            <p>
+                ポーカーに参加する際には、好きな名前を入力してください。
+                入力された名前は一時的にサーバーに保存されますが、一定時間後に自動的に破棄されます。
+            </p>
+        </section>
+        <section class="p-2 mb-2">
+            <h2 class="text-lg font-semibold">免責事項</h2>
+            <p>
+                本アプリの利用に関しては、ユーザー自身の責任でお願いします。
+                アプリの利用によるいかなる問題や損失についても、当方では責任を負いかねますので、ご了承ください。
+            </p>
+        </section>
+    </div>
+
     <a
             href="https://github.com/pistatium/planning_poker_example"
             target="_blank"
@@ -49,6 +81,7 @@
     </a>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reconnecting-websocket/1.0.0/reconnecting-websocket.min.js" integrity="sha512-B4skI5FiLurS86aioJx9VfozI1wjqrn6aTdJH+YQUmCZum/ZibPBTX55k5d9XM6EsKePDInkLVrN7vPmJxc1qA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="app.js"></script>
 </body>
 </html>
