@@ -64,7 +64,6 @@ func (f2 FirestoreRoomRepository) Find(ctx context.Context, roomID string) (*ent
 	if err != nil {
 		return nil, fmt.Errorf("fail to init firestore: %v", err)
 	}
-
 	defer client.Close()
 	doc, err := client.Collection(string(f2.collectionName)).Doc(roomID).Get(ctx)
 	if err != nil {
@@ -92,7 +91,13 @@ func (f2 FirestoreRoomRepository) Find(ctx context.Context, roomID string) (*ent
 func (f2 FirestoreRoomRepository) Save(ctx context.Context, room *entities.Room) error {
 	mu.Lock()
 	defer mu.Unlock()
-	client, err := f2.app.Firestore(ctx)
+	var client *firestore.Client
+	var err error
+	if f2.databaseName == "" {
+		client, err = firestore.NewClient(ctx, string(f2.projectID))
+	} else {
+		client, err = firestore.NewClientWithDatabase(ctx, string(f2.projectID), string(f2.databaseName))
+	}
 	if err != nil {
 		return fmt.Errorf("fail to init firestore: %v", err)
 	}
