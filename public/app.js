@@ -34,6 +34,37 @@ window.addEventListener(
     false,
 );
 
+let timeoutHandler = null;
+const timeout = 5 * 60 * 1000;
+document.addEventListener("visibilitychange", () => {
+
+    if (document.hidden) {
+        console.log("suspend")
+        if (selectedCard) {
+            selectedCard.classList.remove("bg-yellow-300");
+            selectedCard = null;
+        }
+        // 一定時間経ったらセッションを切断する
+        timeoutHandler = setTimeout(() => {
+            console.log("connection closed")
+            socket.close();
+        }, timeout)
+    } else {
+        console.log("resume")
+        if (timeoutHandler) {
+            clearTimeout(timeoutHandler);
+        }
+        socket.automaticOpen = true;
+        if (socket.readyState === WebSocket.CLOSED) {
+            socket.open()
+            // FIXME: openし終わる前に送るとエラーになるので少し待つ
+            setTimeout(() => {
+                socket.send(JSON.stringify({type: "join", user_name: nameInput.value.trim()}));
+            }, 100)
+        }
+    }
+});
+
 if (room === "") {
     // ランダムなRoomIDを生成
     hash = Math.random().toString(36).substr(2, 8);
@@ -49,10 +80,10 @@ socket.addEventListener('open', (event) => {
         const name = nameInput.value.trim();
         if (name) {
             socket.send(JSON.stringify({type: 'join', user_name: name}));
+            renderCards([...fibonacciNumbers, ...specialCards]);
             joinContainer.classList.add("hidden")
             controllerContainer.classList.remove("hidden")
             saveName(name);
-            // setPolling()
         }
     });
     // 開示ボタンを押したときのイベント
@@ -74,7 +105,6 @@ socket.addEventListener('message', (event) => {
 
     if (data.type === 'joined') {
         // joinedイベントを受け取ったときの処理
-        renderCards([...fibonacciNumbers, ...specialCards]);
     } else if (data.type === 'error') {
         // errorイベントを受け取ったときの処理
         showError(data.message);
@@ -86,10 +116,14 @@ socket.addEventListener('message', (event) => {
             historyDateSet.add(data.estimated_at);
         }
     } else if (data.type === 'participants') {
+        if (data.state ==="estimated") {
+            return;
+        }
         participantsContainer.innerHTML = "";
         if (!data.participants) {
             return;
         }
+
         data.participants.forEach(renderParticipant);
     }
 });
@@ -143,7 +177,7 @@ function renderHistory(estimates, estimatedAt) {
     historyRows = []
     for (const {user_name, point} of estimates) {
         // pointsが数字以外なら無視
-        if (isNaN(point) || point === null) {
+        if (isNaN(point) || point === null || point === "") {
             continue;
         }
         sum += parseInt(point);

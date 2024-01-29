@@ -11,20 +11,16 @@
 * 平均計算
 * 見積もりログ
 
-## 仕組み
-* deno の WebSocket サーバーとそれに接続するクライアントから構成されています。
-  * DBなどの永続化の仕組みは今のところありません
-    * 都度部屋を作って都度使い捨てるような運用を想定しています
-  * なぜ deno か
-    * deno deploy が使いたかったのがもともとです
-    * deno deployだとインスタンス数が不定なので運が悪いと同じ部屋に入れない問題があります
-      * Cloud Run でインスタンス数 1 で固定するみたいな運用がいいかもです
-
-
-https://zenn.dev/articles/996f1c64ef58f3/edit
+## 構成
+* CloudRun + Firestore
+* Go製のWebSocketサーバーでリアルタイムに通信しています
+* FirestoreはCloudRunのインスタンス切り替え時にデータを引き継ぐために利用
+* FIXME: フロントをReactなどでちゃんと書きなおす
 
 
 ## サーバー
+
+### 受信イベント
 
 join(roomId, userName):
 * ルームに入る
@@ -42,3 +38,14 @@ reveal(roomId, userName):
 reset(roomId, userName):
 * 参加者全員のPointをNotSetに
 * 全員に参加者情報を通知
+
+### 送信イベント
+
+participants
+* 現在の状態を通知するイベント
+* 適宜送信されます
+* 現在の参加者情報、見積もり状態を送信
+
+estimates
+* 誰かが見積もりを開示したときに飛ぶイベント
+* 見積もり結果を送信

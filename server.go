@@ -89,13 +89,6 @@ type ParticipantResponse struct {
 
 func (s *Server) wsHandler(w http.ResponseWriter, r *http.Request) {
 
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		slog.Error("upgrade error:", slog.Any("error", err))
-		return
-	}
-	defer conn.Close()
-
 	// parameterからroomIDを取得
 	roomID := r.URL.Query().Get("room")
 	if roomID == "" {
@@ -103,6 +96,13 @@ func (s *Server) wsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slog.Info("roomID", slog.String("roomID", roomID))
+
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		slog.Error("upgrade error:", slog.Any("error", err))
+		return
+	}
+	defer conn.Close()
 
 	// ソケットメッセージのストリームを生成
 	messageStream := make(chan []byte)
@@ -138,7 +138,6 @@ func (s *Server) wsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for {
-		slog.Info("waiting message")
 		select {
 		case <-r.Context().Done():
 			return
@@ -173,7 +172,9 @@ func (s *Server) handleWsMessage(ctx context.Context, conn *websocket.Conn, room
 		sendError(conn, err)
 		return
 	}
-	slog.Info("message", slog.String("message", string(message)))
+	var logBody map[string]interface{}
+	json.Unmarshal(message, &logBody)
+	slog.Info("-> received", slog.Any("message", logBody), slog.String("remote_addr", conn.RemoteAddr().String()))
 	switch m.Type {
 	case "get":
 		{
@@ -232,7 +233,10 @@ func (s *Server) handleWsMessage(ctx context.Context, conn *websocket.Conn, room
 }
 
 func sendError(conn *websocket.Conn, err error) {
-	slog.Error("write error:", slog.Any("error", err))
+	slog.Error("<- error:",
+		slog.Any("error", err),
+		slog.String("remote_addr", conn.RemoteAddr().String()),
+	)
 	err = conn.WriteJSON(&Response{
 		Type:    "error",
 		Message: err.Error(),
@@ -250,6 +254,12 @@ func sendEstimates(conn *websocket.Conn, room *entities.Room) {
 			PointLabel: e.Point.Label(),
 		})
 	}
+	slog.Info("<- estimates",
+		slog.Any("estimates", estimates),
+		slog.String("state", string(room.State())),
+		slog.String("remote_addr", conn.RemoteAddr().String()),
+	)
+
 	err := conn.WriteJSON(&EstimatesResponse{
 		Response: Response{
 			Type: "estimates",
@@ -270,6 +280,11 @@ func sendParticipants(conn *websocket.Conn, room *entities.Room) {
 			IsEstimated: e.Point != &entities.PointNotSet,
 		})
 	}
+	slog.Info("<- participants",
+		slog.Any("participants", participants),
+		slog.String("state", string(room.State())),
+		slog.String("remote_addr", conn.RemoteAddr().String()),
+	)
 	err := conn.WriteJSON(&ParticipantResponse{
 		Response: Response{
 			Type: "participants",
@@ -283,6 +298,7 @@ func sendParticipants(conn *websocket.Conn, room *entities.Room) {
 }
 
 func sendJoinStatus(conn *websocket.Conn) {
+	slog.Info("<- joined", slog.String("remote_addr", conn.RemoteAddr().String()))
 	err := conn.WriteJSON(&ParticipantResponse{
 		Response: Response{
 			Type: "joined",
