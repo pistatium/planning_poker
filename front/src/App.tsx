@@ -15,18 +15,20 @@ const App = ({roomID}: Props): ReactElement => {
     const shareUrl = `${window.location.origin}${window.location.pathname}#${room}`;
     const [errorMessage, setErrorMessage] = useState<string>('');
     const [socket, setSocket] = useState<WebSocket | null>(null);
-    const [selectedCard, setSelectedCard] = useState(null);
+    const [isJoined, setIsJoined] = useState<boolean>(false);
+    const [selectedCard, setSelectedCard] = useState<string>("");
     const [userName, setUserName] = useState('');
     const [participants, setParticipants] = useState<Participant[]>([]);
     const [estimates, setEstimates] = useState<Estimate[]>([]);
 
     useEffect(() => {
         const socket = new WebSocket(serverUrl);
-        setSocket(socket);
+
         socket.addEventListener('open', (event) => {
             console.log('WebSocket connection opened:', event);
         });
         socket.addEventListener('message', (event) => {
+            console.log('received', event);
             const msg: Message = JSON.parse(event.data);
             switch (msg.type) {
                 case "error":
@@ -42,7 +44,9 @@ const App = ({roomID}: Props): ReactElement => {
                     console.error('Unknown message type:', msg);
             }
         });
+        setSocket(socket);
         return () => {
+            console.log('closing socket');
             socket.close();
         };
     }, []);
@@ -50,25 +54,46 @@ const App = ({roomID}: Props): ReactElement => {
     const receiveError = (message: MessageError) => {
         setErrorMessage(message.message);
     };
+
     const receiveEstimates = (message: MessageEstimate) => {
         setEstimates(message.estimates);
     };
 
     const receiveParticipants = (message: MessageParticipants) => {
         setParticipants(message.participants || []);
+        setIsJoined(true);
     };
 
     const onClickJoin = () => {
-        socket?.send(JSON.stringify({type: 'joinRoom'}));
+        socket?.send(JSON.stringify({type: 'join', user_name: userName}));
     };
 
     const onClickReveal = () => {
-        socket?.send(JSON.stringify({type: 'reveal'}));
+        socket?.send(JSON.stringify({type: 'reveal', user_name: userName}));
     };
     const onClickReset = () => {
-        socket?.send(JSON.stringify({type: 'reset'}));
+        socket?.send(JSON.stringify({type: 'reset', user_name: userName}));
     };
 
+    const onChangeName = (event: React.ChangeEvent<HTMLInputElement>) => {
+        setUserName(event.target.value);
+    }
+    const cards = ['1', '2', '3', '5', '8', '13', '21', '34', '55', '?', '∞', ''];
+    const cardElements = cards.map((card, i) => {
+        return (
+            <div
+                key={i}
+                className="bg-white hover:bg-gray-10 text-gray-800 font-semibold py-2 px-4 border border-gray-400 rounded shadow {{selectedCard === card ? 'bg-blue-500 text-white' : ''}}"
+                onClick={() => {
+                    setSelectedCard(card);
+                    socket?.send(JSON.stringify({type: 'estimate', point: card, user_name: userName}));
+                }}
+            >
+                {card}
+
+            </div>
+        );
+    });
     return (
         <div className="">
             <h1 className="text-3xl font-bold mb-4">プランニングポーカー</h1>
@@ -78,28 +103,35 @@ const App = ({roomID}: Props): ReactElement => {
 
             <div className="error">{errorMessage}</div>
             <div className="bg-white shadow-sm rounded p-6 mt-6 mb-6">
-                <form id="join-container" className="flex flex-col items-center">
-                    <input aria-label="username" id="name" className="border rounded-lg px-3 py-2" placeholder="名前を入力" required/>
-                    <button id="join" type="submit" className="bg-blue-500 text-white px-4 py-2 rounded-lg mt-2">参加</button>
-                </form>
+                {isJoined ? (
+                    <div>
+                        <div id="participants" className="grid grid-cols-6 gap-4"></div>
+                        <div id="controller" className="">
+                            <div className="mt-6 ">
+                                <h2 className="text-2xl font-bold mb-4">見積もりカード</h2>
+                                <div id="cards" className="grid grid-cols-4 gap-4">
+                                    {cardElements}
+                                </div>
+                            </div>
+                            <div className="mt-6 flex">
+                                <button id="reveal" className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded flex-grow">見積もりを開示</button>
+                                <button id="reset" className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded ml-4">全員の見積もりをリセット</button>
+                            </div>
+                            <div className="mt-6">
+                                <h2 className="text-2xl font-bold mb-4">履歴</h2>
+                                <div id="history" className="">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <form id="join-container" className="flex flex-col items-center" onSubmit={onClickJoin}>
+                        <input aria-label="username" id="name" className="border rounded-lg px-3 py-2" placeholder="名前を入力" required value={userName} onChange={onChangeName}/>
+                        <button id="join" type="submit" className="bg-blue-500 text-white px-4 py-2 rounded-lg mt-2">参加</button>
+                    </form>
+                )
+                }
 
-                <div id="participants" className="grid grid-cols-6 gap-4"></div>
-                <div id="controller" className="hidden">
-                    <div className="mt-6 ">
-                        <h2 className="text-2xl font-bold mb-4">見積もりカード</h2>
-                        <div id="cards" className="grid grid-cols-4 gap-4">
-                        </div>
-                    </div>
-                    <div className="mt-6 flex">
-                        <button id="reveal" className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded flex-grow">見積もりを開示</button>
-                        <button id="reset" className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded ml-4">全員の見積もりをリセット</button>
-                    </div>
-                    <div className="mt-6">
-                        <h2 className="text-2xl font-bold mb-4">履歴</h2>
-                        <div id="history" className="">
-                        </div>
-                    </div>
-                </div>
             </div>
             <div id="description" className="bg-white shadow-sm rounded p-6 text-small">
                 <h1 className="text-xl font-bold text-center text-gray-600 mb-6">無料で使える、リアルタイムなプランニングポーカー！</h1>
