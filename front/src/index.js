@@ -4,6 +4,7 @@ import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 
+// location の変化を検知
 window.addEventListener(
     "hashchange",
     () => {
@@ -12,10 +13,18 @@ window.addEventListener(
     false,
 );
 
+// RoomIDの取得
+const room = window.location.hash.substr(1) || "";
+if (room === "") {
+    // ランダムなRoomIDを生成
+    const hash = Math.random().toString(36).substr(2, 8);
+    window.location.hash = hash;
+}
+
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <App />
+    <App roomID={room}/>
   </React.StrictMode>
 );
 
