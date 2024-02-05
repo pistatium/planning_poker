@@ -11,14 +11,18 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"strconv"
 	"time"
 )
 
 type Env struct {
-	Port      int `envconfig:"PORT" default:"8080"`
-	Firestore struct {
+	Port int `envconfig:"PORT" default:"8080"`
+	// frontの開発サーバーに接続する場合
+	DevelopMode bool `envconfig:"DEVELOP_MODE" default:"false"`
+	Firestore   struct {
 		ProjectID      internal.FirestoreProjectID      `envconfig:"FIRESTORE_PROJECT_ID" required:"true"`
 		DatabaseName   internal.FirestoreDatabaseName   `envconfig:"FIRESTORE_DATABASE_NAME" default:""`
 		CollectionName internal.FirestoreCollectionName `envconfig:"FIRESTORE_ROOM_COLLECTION_NAME" default:"planing_poker_rooms"`
@@ -43,10 +47,20 @@ func main() {
 	server := &Server{
 		eventManager: internal.NewEventManager(roomRepository),
 	}
-
 	http.HandleFunc("/ws", server.wsHandler)
-	// ファイルをホストする
-	http.Handle("/", http.StripPrefix("/", http.FileServer(http.Dir("public"))))
+
+	if env.DevelopMode {
+		// localhost:9000 にすべてのパスをreverse proxyする
+		backendUrl, _ := url.Parse("http://localhost:3000")
+		proxy := httputil.NewSingleHostReverseProxy(backendUrl)
+		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			proxy.ServeHTTP(w, r)
+		})
+	} else {
+		// ファイルをホストする
+		http.Handle("/", http.StripPrefix("/", http.FileServer(http.Dir("public"))))
+
+	}
 	slog.Info("server started", slog.Any("port", env.Port))
 	log.Fatal(http.ListenAndServe(net.JoinHostPort("", strconv.Itoa(env.Port)), nil))
 }
@@ -247,7 +261,7 @@ func sendError(conn *websocket.Conn, err error) {
 }
 
 func sendEstimates(conn *websocket.Conn, room *entities.Room) {
-	var estimates []RepsEstimate
+	var estimates = make([]RepsEstimate, 0, len(room.Estimates()))
 	for _, e := range room.Estimates() {
 		estimates = append(estimates, RepsEstimate{
 			UserName:   e.User.Name,

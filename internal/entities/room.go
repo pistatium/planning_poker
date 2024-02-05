@@ -161,7 +161,14 @@ func (r *Room) SetEstimate(userName string, point *Point) error {
 			return nil
 		}
 	}
-	return UserNotFoundError
+	user := NewUser(userName)
+	estimate := &Estimate{
+		User:  user,
+		Point: point,
+	}
+	r.estimates = append(r.estimates, estimate)
+	r.lastModifiedAt = time.Now()
+	return nil
 }
 
 func (r *Room) RevealEstimates() {
