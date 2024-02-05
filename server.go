@@ -261,7 +261,7 @@ func sendError(conn *websocket.Conn, err error) {
 }
 
 func sendEstimates(conn *websocket.Conn, room *entities.Room) {
-	var estimates []RepsEstimate
+	var estimates = make([]RepsEstimate, 0, len(room.Estimates()))
 	for _, e := range room.Estimates() {
 		estimates = append(estimates, RepsEstimate{
 			UserName:   e.User.Name,
