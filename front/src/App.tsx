@@ -2,7 +2,8 @@ import './App.css';
 
 import React, {useState, useEffect, ReactElement} from 'react';
 import {WebSocket} from "partysocket";
-import Message, {Estimate, MessageError, MessageEstimate, MessageParticipants, Participant} from "./pokerRoom/event.ts";
+import Message, {Estimate, MessageError, MessageEstimate, MessageParticipants, Participant, RoomState} from "./pokerRoom/event.ts";
+import History from "./pokerRoom/history.ts";
 
 type Props = {
     roomID: string;
@@ -12,7 +13,6 @@ const App = ({roomID}: Props): ReactElement => {
     const path = '/ws';
     const room = window.location.hash.substr(1) || "";
     const serverUrl = `${protocol}${window.location.host}${path}?room=${room}`;
-    const shareUrl = `${window.location.origin}${window.location.pathname}#${room}`;
     const [errorMessage, setErrorMessage] = useState<string>('');
     const [socket, setSocket] = useState<WebSocket | null>(null);
     const [isJoined, setIsJoined] = useState<boolean>(false);
@@ -20,19 +20,24 @@ const App = ({roomID}: Props): ReactElement => {
     const [userName, setUserName] = useState('');
     const [participants, setParticipants] = useState<Participant[]>([]);
     const [estimates, setEstimates] = useState<Estimate[]>([]);
-
+    const [status, setStatus] = useState<RoomState>('open');
+    const [histories, setHistories] = useState<History[]>([]);
+    const [timeoutHandler, setTimeoutHandler] = useState<NodeJS.Timeout | null>(null);
     useEffect(() => {
+        setUserName(localStorage.getItem('savedName') || '');
         const socket = new WebSocket(serverUrl);
 
         socket.addEventListener('open', (event) => {
             console.log('WebSocket connection opened:', event);
         });
         socket.addEventListener('message', (event) => {
-            console.log('received', event);
+            console.log('received', event.data);
             const msg: Message = JSON.parse(event.data);
             switch (msg.type) {
                 case "error":
                     receiveError(msg);
+                    break;
+                case "joined":
                     break;
                 case "participants":
                     receiveParticipants(msg);
@@ -45,6 +50,24 @@ const App = ({roomID}: Props): ReactElement => {
             }
         });
         setSocket(socket);
+
+        document.addEventListener("visibilitychange", () => {
+            if (document.hidden) {
+                console.log("suspend")
+                setSelectedCard("");
+                // 一定時間経ったらセッションを切断する
+                setTimeoutHandler(setTimeout(() => {
+                    console.log("connection closed")
+                    socket.close();
+                }, 1000 * 60 * 5))
+            } else {
+                console.log("resume")
+                if (timeoutHandler) {
+                    clearTimeout(timeoutHandler);
+                }
+                socket.reconnect()
+            }
+        });
         return () => {
             console.log('closing socket');
             socket.close();
@@ -56,12 +79,36 @@ const App = ({roomID}: Props): ReactElement => {
     };
 
     const receiveEstimates = (message: MessageEstimate) => {
+        let sum = 0
+        const validEstimates = []
+        for (let es of message.estimates) {
+            // pointsが数字以外なら無視
+            if (es.point === null || es.point === "" || Number.isNaN(parseInt(es.point))) {
+                continue;
+            }
+            validEstimates.push(es);
+            sum += parseInt(es.point);
+        }
+        const newHistory = {
+            estimated_at: message.estimated_at,
+            estimates: validEstimates,
+            average: (sum / validEstimates.length).toFixed(2),
+        }
+
+        setHistories((prev) => {
+            if (prev.some((h) => h.estimated_at === message.estimated_at)) {
+                return prev;
+            }
+            return [newHistory, ...prev];
+        });
+        setSelectedCard("");
         setEstimates(message.estimates);
     };
 
     const receiveParticipants = (message: MessageParticipants) => {
         setParticipants(message.participants || []);
         setIsJoined(true);
+        setStatus(message.state);
     };
 
     const onClickJoin = () => {
@@ -77,20 +124,49 @@ const App = ({roomID}: Props): ReactElement => {
 
     const onChangeName = (event: React.ChangeEvent<HTMLInputElement>) => {
         setUserName(event.target.value);
+        localStorage.setItem('savedName', event.target.value);
     }
-    const cards = ['1', '2', '3', '5', '8', '13', '21', '34', '55', '?', '∞', ''];
+    const cards = ['1', '2', '3', '5', '8', '13', '21', '34', '55', '∞', '?', ''];
     const cardElements = cards.map((card, i) => {
+        const pointLabel = card === '' ? '未選択' : card;
         return (
-            <div
+            <button
                 key={i}
-                className="bg-white hover:bg-gray-10 text-gray-800 font-semibold py-2 px-4 border border-gray-400 rounded shadow {{selectedCard === card ? 'bg-blue-500 text-white' : ''}}"
+                className={`bg-gray-200 text-lg font-bold px-2 py-2 rounded ${selectedCard === card ? 'bg-yellow-300' : ''}`}
                 onClick={() => {
                     setSelectedCard(card);
                     socket?.send(JSON.stringify({type: 'estimate', point: card, user_name: userName}));
                 }}
             >
-                {card}
-
+                {pointLabel}
+            </button>
+        );
+    });
+    const receiverListElements = participants.map((participant, i) => {
+        let point = ''
+        if (status === 'estimated') {
+            point = estimates.find((e) => e.user_name === participant.user_name)?.point || '';
+        }
+        return (
+            <div key={i} className={`flex flex-col items-center w-24 h-28 border border-gray-200 rounded shadow p-2 ${participant.is_estimated ? 'bg-green-200' : 'bg-white'}`}>
+                <div className={`w-full h-full border-2 border-gray-200 rounded bg-white flex items-center justify-center text-lg font-bold ${participant.is_estimated ? 'bg-green-50' : 'bg-white'}`}>{point}</div>
+                {participant.user_name}
+            </div>
+        );
+    });
+    const historyElements = histories.map((history, i) => {
+        const date = new Date(history.estimated_at);
+        const dateJSTStr = date.toLocaleString("ja-JP", {timeZone: "Asia/Tokyo"});
+        const estimateElements = history.estimates.map((e) => {
+            return (
+                <div key={e.user_name}><span key={e.user_name} className="font-bold">{e.user_name}</span> {e.point}</div>
+            )
+        });
+        return (
+            <div key={history.estimated_at} className="border-l-4 border-yellow-300 my-4 px-2 py-2">
+                <div>{dateJSTStr}</div>
+                <div className="text-lg font-bold mb-2">平均: {history.average}</div>
+                <div>{estimateElements}</div>
             </div>
         );
     });
@@ -105,7 +181,9 @@ const App = ({roomID}: Props): ReactElement => {
             <div className="bg-white shadow-sm rounded p-6 mt-6 mb-6">
                 {isJoined ? (
                     <div>
-                        <div id="participants" className="grid grid-cols-6 gap-4"></div>
+                        <div id="participants" className="grid grid-cols-6 gap-4">
+                            {receiverListElements}
+                        </div>
                         <div id="controller" className="">
                             <div className="mt-6 ">
                                 <h2 className="text-2xl font-bold mb-4">見積もりカード</h2>
@@ -114,12 +192,13 @@ const App = ({roomID}: Props): ReactElement => {
                                 </div>
                             </div>
                             <div className="mt-6 flex">
-                                <button id="reveal" className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded flex-grow">見積もりを開示</button>
-                                <button id="reset" className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded ml-4">全員の見積もりをリセット</button>
+                                <button id="reveal" onClick={onClickReveal} className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded flex-grow">見積もりを開示</button>
+                                <button id="reset" onClick={onClickReset} className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded ml-4">全員の見積もりをリセット</button>
                             </div>
                             <div className="mt-6">
                                 <h2 className="text-2xl font-bold mb-4">履歴</h2>
                                 <div id="history" className="">
+                                    {historyElements}
                                 </div>
                             </div>
                         </div>

@@ -1,13 +1,17 @@
+type RoomState = 'open' | 'estimated'
 
 type Participant = {
     user_name: string
     is_estimated: boolean
 }
 
+type MessageJoined = {
+    type: 'joined'
+}
 type MessageParticipants = {
     type: 'participants'
     participants?: Participant[]
-    state: 'open' | 'estimated'
+    state: RoomState
 }
 
 type Estimate = {
@@ -26,8 +30,8 @@ type MessageError = {
     message: string
 }
 
-type Message = MessageParticipants | MessageEstimate | MessageError
-
+type Message = MessageParticipants | MessageEstimate | MessageError | MessageJoined
+export type { RoomState }
 export type { Participant, Estimate }
-export type { MessageParticipants, MessageEstimate, MessageError }
+export type { MessageParticipants, MessageEstimate, MessageError, MessageJoined }
 export default Message
